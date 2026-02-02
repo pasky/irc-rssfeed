@@ -5,6 +5,8 @@ import dataclasses
 import time
 import concurrent.futures
 import queue
+import html
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Callable
@@ -33,6 +35,8 @@ class InstanceConfig:
     opml_path: str
     extract_url: bool = False
     multisource: bool = False
+    # Append an extra ":: <description>" segment (truncated) to each IRC message.
+    include_description: bool = False
     server: str = "open.ircnet.net"
     port: int = 6667
 
@@ -58,6 +62,7 @@ def load_config(path: str, instance_name: str) -> InstanceConfig:
                 opml_path=entry["opml_path"],
                 extract_url=bool(entry.get("extract_url", False)),
                 multisource=bool(entry.get("multisource", False)),
+                include_description=bool(entry.get("include_description", entry.get("longreads", False))),
                 server=entry.get("server", "open.ircnet.net"),
                 port=int(entry.get("port", 6667)),
             )
@@ -108,8 +113,42 @@ def extract_url(link: str) -> str:
     return candidate
 
 
-def format_message(title: str, link: str, prefix: str) -> str:
-    return f"{prefix}\x02{title}\x02 \x0314::\x03 {link}"
+IRC_SAFE_MESSAGE_LEN = 400  # conservative; RFC max line is 512 incl. overhead
+
+
+def _strip_html(text: str) -> str:
+    # Very small/fast HTML->text helper; good enough for RSS <description>/<summary>.
+    text = html.unescape(text)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def _item_description(item: dict[str, str]) -> str:
+    # feedparser uses 'summary' frequently; some feeds use 'description'.
+    desc = (item.get("summary") or item.get("description") or "").strip()
+    return _strip_html(desc)
+
+
+def format_message(title: str, link: str, prefix: str, description: str | None = None) -> str:
+    base = f"{prefix}\x02{title}\x02 \x0314::\x03 {link}"
+
+    if not description:
+        return base
+
+    remaining = IRC_SAFE_MESSAGE_LEN - len(base) - len(" \x0314::\x03 ")
+    if remaining <= 0:
+        return base
+
+    desc = description.strip()
+    if len(desc) > remaining:
+        # leave room for ellipsis
+        if remaining >= 3:
+            desc = desc[: remaining - 3].rstrip() + "..."
+        else:
+            desc = desc[:remaining]
+
+    return base + f" \x0314::\x03 {desc}"
 
 
 def make_handlers(
@@ -136,7 +175,8 @@ def make_handlers(
             if config.extract_url:
                 link = extract_url(link)
             printer(f"-> {prefix}: {title} {link}")
-            connection.privmsg(config.channel, format_message(title, link, prefix))
+            desc = _item_description(item) if config.include_description else None
+            connection.privmsg(config.channel, format_message(title, link, prefix, desc))
 
     def drain_queue(connection: irc.client.ServerConnection) -> None:
         while True:

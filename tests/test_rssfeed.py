@@ -5,12 +5,14 @@ from dataclasses import dataclass
 import pytest
 
 from rssfeed import (
+    IRC_SAFE_MESSAGE_LEN,
     Feed,
     InstanceConfig,
     State,
     delta_items,
     extract_url,
     fetch_feed,
+    format_message,
     load_config,
     make_handlers,
     parse_opml,
@@ -155,6 +157,53 @@ def test_extract_url_variants():
     assert extract_url("https://example.com/?url=/target/path") == "http:/target/path"
 
 
+def test_format_message_description_truncation_paths():
+    # No description -> unchanged
+    msg = format_message("T", "https://x", "", None)
+    assert "https://x" in msg
+    assert msg.count("\x0314::\x03") == 1
+
+    # remaining <= 0: base already fills (or exceeds) the safe message length
+    very_long_link = "http://" + ("x" * (IRC_SAFE_MESSAGE_LEN + 50))
+    base = format_message("T", very_long_link, "")
+    with_desc = format_message("T", very_long_link, "", "abc")
+    assert with_desc == base
+
+    # remaining >= 3: ellipsis branch
+    title = "T"
+    link = "https://x"
+    base = format_message(title, link, "")
+    # make description longer than the remaining budget
+    long_desc = "a" * 1000
+    truncated = format_message(title, link, "", long_desc)
+    assert truncated.startswith(base + " \x0314::\x03 ")
+    assert truncated.endswith("...")
+
+    # remaining < 3: non-ellipsis truncation branch (exercise the else)
+    sep = " \x0314::\x03 "
+    # Choose a base length so remaining becomes 2.
+    # remaining = IRC_SAFE_MESSAGE_LEN - len(base) - len(sep)
+    target_remaining = 2
+    # build a link that makes base hit the desired length
+    # base = "\x02{title}\x02 \x0314::\x03 {link}"
+    fixed_overhead = len("\x02") + len("\x02 ") + len("\x0314::\x03 ")
+    # But easiest: construct iteratively.
+    title = "T"
+    prefix = ""
+    # find link length to hit remaining==2
+    # brute force a bit to stay stable
+    for n in range(1, 2000):
+        link = "h" * n
+        base_candidate = format_message(title, link, prefix)
+        rem = IRC_SAFE_MESSAGE_LEN - len(base_candidate) - len(sep)
+        if rem == target_remaining:
+            out = format_message(title, link, prefix, "abcdef")
+            assert out.endswith("ab")  # truncated to exactly 2 chars
+            break
+    else:
+        raise AssertionError("Could not find lengths to hit remaining==2")
+
+
 def test_load_config(tmp_path):
     config_path = tmp_path / "config.toml"
     config_path.write_text(
@@ -267,6 +316,59 @@ def test_handlers_flow():
     assert reactor.connection.ctcps == [("bob", "VERSION RSS->IRC gateway")]
 
     assert any(message.startswith("[Source]") for _target, message in reactor.connection.privmsgs)
+
+
+def test_include_description_appends_description():
+    config = InstanceConfig(
+        name="demo",
+        nick="demo",
+        ircname="Demo",
+        channel="#chan",
+        refresh_minutes=1,
+        opml_path="feeds.opml",
+        multisource=False,
+        include_description=True,
+    )
+    feeds = [Feed(url="http://example.com/rss")]
+    state = State()
+    reactor = FakeReactor()
+
+    calls = 0
+
+    def fetcher(_url: str):
+        nonlocal calls
+        calls += 1
+        title = "Warmup" if calls == 1 else "Item 1"
+        return [
+            {
+                "title": title,
+                "link": "https://site.test/post",
+                "summary": "<p>I don't necessarily believe in <b>anything</b> permanently.</p>",
+            }
+        ]
+
+    handlers = make_handlers(
+        config,
+        feeds,
+        state,
+        reactor,
+        fetcher,
+        sleeper=lambda _n: None,
+        printer=lambda _msg: None,
+        executor=InlineExecutor(),
+    )
+
+    handlers["check_all_rss"](reactor.connection)
+    handlers["drain_queue"](reactor.connection)
+    # first run warms the seen-cache; second run should emit
+    handlers["check_all_rss"](reactor.connection)
+    handlers["drain_queue"](reactor.connection)
+
+    # With include_description=True we should get an extra :: <description> segment
+    sent = [msg for _target, msg in reactor.connection.privmsgs if "Item 1" in msg]
+    assert sent
+    assert "\x0314::\x03 https://site.test/post" in sent[-1]
+    assert "\x0314::\x03 I don't necessarily believe in anything permanently." in sent[-1]
 
 
 def test_handlers_fetch_error():

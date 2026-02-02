@@ -27,3 +27,4 @@ refresh_minutes = 30
 opml_path = "feeds/longreads.opml"
 extract_url = true
 multisource = true
+include_description = true
