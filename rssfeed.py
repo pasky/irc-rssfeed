@@ -110,6 +110,7 @@ def format_message(title: str, link: str, prefix: str) -> str:
 
 def make_handlers(config, feeds, state, reactor, fetcher, sleeper, printer) -> dict[str, Callable]:
     def check_rss(connection: irc.client.ServerConnection, feed: Feed) -> None:
+        printer(f"Fetching {feed.url}")
         prefix = f"[{feed.name}] " if config.multisource and feed.name else ""
         try:
             new_items = fetcher(feed.url)
@@ -123,6 +124,7 @@ def make_handlers(config, feeds, state, reactor, fetcher, sleeper, printer) -> d
             link = (item.get("link") or "").strip()
             if config.extract_url:
                 link = extract_url(link)
+            printer(f"-> {prefix}: {title} {link}")
             connection.privmsg(config.channel, format_message(title, link, prefix))
 
     def check_all_rss(connection: irc.client.ServerConnection) -> None:
