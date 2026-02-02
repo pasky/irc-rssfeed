@@ -1,0 +1,29 @@
+[[instances]]
+name = "slashdot"
+nick = "slashdot"
+ircname = "Slashdot - http://slashdot.org/, SoylentNews"
+channel = "#news.cz,#linux.cz"
+refresh_minutes = 30
+opml_path = "feeds/slashdot.opml"
+extract_url = false
+multisource = false
+
+[[instances]]
+name = "newscz"
+nick = "newscz"
+ircname = "See https://pasky.or.cz/rss.txt for list of feeds"
+channel = "#news.cz"
+refresh_minutes = 10
+opml_path = "feeds/newscz.opml"
+extract_url = true
+multisource = true
+
+[[instances]]
+name = "KoubskyNews"
+nick = "KoubskyNews"
+ircname = "RSS feeds Petra Koubskeho"
+channel = "#news.cz"
+refresh_minutes = 30
+opml_path = "feeds/koubsky.opml"
+extract_url = true
+multisource = true

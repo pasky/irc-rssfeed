@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>Koubsky News</title>
+  </head>
+  <body>
+    <outline text="365tipu" xmlUrl="https://365tipu.cz/feed/" />
+    <outline text="Ahead of AI" xmlUrl="https://magazine.sebastianraschka.com/feed" />
+    <outline text="AI dětem" xmlUrl="https://aidetem.cz/feed/" />
+    <outline text="Artificial Ignorance" xmlUrl="https://www.ignorance.ai/feed" />
+    <outline text="Česká asociace umělé inteligence" xmlUrl="https://asociace.ai/feed/" />
+    <outline text="LessWrong" xmlUrl="https://www.lesswrong.com/feed.xml" />
+    <outline text="OpenAI News" xmlUrl="https://openai.com/news/rss.xml" />
+    <outline text="THE DECODER" xmlUrl="https://the-decoder.com/feed/" />
+    <outline text="Understanding AI" xmlUrl="https://www.understandingai.org/feed" />
+    <outline text="Bad Astronomy" xmlUrl="http://www.blastr.com/tags/bad-astronomy/feed" />
+    <outline text="ČT 24 - Věda" xmlUrl="https://ct24.ceskatelevize.cz/veda/rss" />
+    <outline text="For Better Science" xmlUrl="https://forbetterscience.com/feed/" />
+    <outline text="MIT Technology Review" xmlUrl="https://www.technologyreview.com/feed/" />
+    <outline text="Nature" xmlUrl="http://www.nature.com/nature/current_issue/rss" />
+    <outline text="Nautilus" xmlUrl="https://nautil.us/feed/" />
+    <outline text="New Scientist - Home" xmlUrl="https://www.newscientist.com/feed/home/" />
+    <outline text="NYT Science" xmlUrl="http://www.nytimes.com/services/xml/rss/nyt/Science.xml" />
+    <outline text="Our World in Data" xmlUrl="https://ourworldindata.org/atom.xml" />
+    <outline text="Quanta Magazine" xmlUrl="https://www.quantamagazine.org/feed/" />
+    <outline text="Retraction Watch" xmlUrl="https://retractionwatch.com/feed/" />
+    <outline text="RSS AV ČR" xmlUrl="https://www.avcr.cz/rss/feed-news-cs-all.rss" />
+    <outline text="Atlantic Science" xmlUrl="http://feeds.feedburner.com/AtlanticScienceChannel" />
+    <outline text="Guardian Science" xmlUrl="http://feeds.guardian.co.uk/theguardian/science/rss" />
+    <outline text="Science Integrity Digest" xmlUrl="https://scienceintegritydigest.com/feed/" />
+    <outline text="Science Magazine" xmlUrl="http://www.sciencemag.org/rss/current.xml" />
+    <outline text="ScienceAlert" xmlUrl="https://www.sciencealert.com/feed" />
+    <outline text="Space" xmlUrl="http://www.space.com/syn/space.xml" />
+    <outline text="The Open Notebook" xmlUrl="https://www.theopennotebook.com/feed/" />
+    <outline text="Undark Magazine" xmlUrl="https://undark.org/feed/" />
+    <outline text="Věda a technologie - iROZHLAS.cz" xmlUrl="https://www.irozhlas.cz/rss/irozhlas/section/veda-technologie" />
+    <outline text="Vědecký oběžník" xmlUrl="https://belandy.substack.com/feed" />
+    <outline text="VUT Brno" xmlUrl="https://www.vut.cz/rss/vut/media/tiskove-zpravy-f19527" />
+  </body>
+</opml>

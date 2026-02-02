@@ -4,90 +4,17 @@
 ./rssfeed.sh ./rssfeed-brmlab.pl brmwiki brmlab.cz \#brmlab 1 https://brmlab.cz/feed.php?view=pages >>brmwiki.log 2>&1 &
 
 function rssfeed () {
-	./rssfeed.sh ./rssfeed.pl "$@" >>/a/logs/rss/$1.log 2>&1 &
+	uv run python ./rssfeed.py --config config.toml --instance "$1" >>/a/logs/rss/$1.log 2>&1 &
 	sleep 2
 }
 
 
 
-rssfeed 'slashdot' 'Slashdot - http://slashdot.org/, SoylentNews' '#news.cz,#linux.cz' 30 \
-	'http://rss.slashdot.org/Slashdot/slashdot' \
-	'http://soylentnews.org/index.rss'
+rssfeed 'slashdot'
 
-rssfeed 'newscz' 'See https://pasky.or.cz/rss.txt for list of feeds' '#news.cz' ua10 \
-	'iDnes|http://servis.idnes.cz/rss.asp?c=zpravodaj' \
-	'iDnes|http://servis.idnes.cz/rss.asp?c=ekonomikah' \
-	'iDnes|http://servis.idnes.cz/rss.asp?c=technet' \
-	'CTK|http://www.ceskenoviny.cz/sluzby/rss/domov.php' \
-	'CTK|http://www.ceskenoviny.cz/sluzby/rss/svet.php' \
-	'CTK|http://www.ceskenoviny.cz/sluzby/rss/pocitace.php' \
-  	'Lidovky|http://servis.lidovky.cz/rss.aspx' \
-  	'iHNed|http://ihned.cz/?m=rss' \
-	'Novinky|http://www.novinky.cz/rdf/novinky.rdf' \
-	'Aktualne|http://aktualne.centrum.cz/export/rss-hp.phtml' \
-	'Echo24|http://echo24.cz/rss/s' \
-	'Britske Listy|http://blisty.cz/rss.rb' \
-	'Reflex|http://www.reflex.cz/rss/index.html' \
-	'Svobodne Forum|http://svobodneforum.cz/feed/' \
-	'Policie|http://www.policie.cz/SCRIPT/rss.aspx?nid=' \
-	'Blesk|http://www.blesk.cz/rss' \
-	'Parlamentni Listy|http://www.parlamentnilisty.cz/export/rss.aspx' \
-	'E15|https://www.e15.cz/rss/vse' \
-	'Root|http://rss.root.cz/clanky/' \
-	'Root|http://rss.root.cz/zpravicky/' \
-	'ABCLinuxu|http://www.abclinuxu.cz/auto/abc.rss' \
-	'ABCLinuxu|http://www.abclinuxu.cz/auto/zpravicky.rss' \
-	'Kernel|http://kernel.org/kdist/rss.xml' \
-    	'Lupa|http://www.lupa.cz/rss2.php3' \
-	'Marigold|https://www.marigold.cz/feed.xml' \
-	'Zive|http://www.zive.cz/system/RSS.xml' \
-	'xkcd|http://xkcd.com/rss.xml' \
-	'MegaTokyo|http://www.megatokyo.com/rss/megatokyo.xml' \
-	'PBFcomics|http://www.pbfcomics.com/feed/feed.xml' \
-	'smbc|http://www.smbc-comics.com/rss.php' \
-	'QC|http://www.questionablecontent.net/QCRSS.xml' \
-	'Osel|http://www.osel.cz/rss/rss.php' \
-	'Vesmir|http://vesmir.cz/feed/rss/kategorie/clanky' \
-	'Rozhlas|http://www.rozhlas.cz/zpravy/rss_aktualne' \
-	'Politico|http://www.politico.eu/feed/' \
-	'Seznam|https://www.seznam.cz/zpravy/rss' \
-	'DenikN|https://denikn.cz/minuta/feed/?cat=17' \
-	'DenikN|https://denikn.cz/feed' \
-	'HN|https://news.ycombinator.com/rss'
+rssfeed 'newscz'
 
-rssfeed 'KoubskyNews' 'RSS feeds Petra Koubskeho' '#news.cz' ua30 \
-	'365tipu|https://365tipu.cz/feed/' \
-	'Ahead of AI|https://magazine.sebastianraschka.com/feed' \
-	'AI dětem|https://aidetem.cz/feed/' \
-	'Artificial Ignorance|https://www.ignorance.ai/feed' \
-	'Česká asociace umělé inteligence|https://asociace.ai/feed/' \
-	'LessWrong|https://www.lesswrong.com/feed.xml' \
-	'OpenAI News|https://openai.com/news/rss.xml' \
-	'THE DECODER|https://the-decoder.com/feed/' \
-	'Understanding AI|https://www.understandingai.org/feed' \
-	'Bad Astronomy|http://www.blastr.com/tags/bad-astronomy/feed' \
-	'ČT 24 - Věda|https://ct24.ceskatelevize.cz/veda/rss' \
-	'For Better Science|https://forbetterscience.com/feed/' \
-	'MIT Technology Review|https://www.technologyreview.com/feed/' \
-	'Nature|http://www.nature.com/nature/current_issue/rss' \
-	'Nautilus|https://nautil.us/feed/' \
-	'New Scientist - Home|https://www.newscientist.com/feed/home/' \
-	'NYT Science|http://www.nytimes.com/services/xml/rss/nyt/Science.xml' \
-	'Our World in Data|https://ourworldindata.org/atom.xml' \
-	'Quanta Magazine|https://www.quantamagazine.org/feed/' \
-	'Retraction Watch|https://retractionwatch.com/feed/' \
-	'RSS AV ČR|https://www.avcr.cz/rss/feed-news-cs-all.rss' \
-	'Atlantic Science|http://feeds.feedburner.com/AtlanticScienceChannel' \
-	'Guardian Science|http://feeds.guardian.co.uk/theguardian/science/rss' \
-	'Science Integrity Digest|https://scienceintegritydigest.com/feed/' \
-	'Science Magazine|http://www.sciencemag.org/rss/current.xml' \
-	'ScienceAlert|https://www.sciencealert.com/feed' \
-	'Space|http://www.space.com/syn/space.xml' \
-	'The Open Notebook|https://www.theopennotebook.com/feed/' \
-	'Undark Magazine|https://undark.org/feed/' \
-	'Věda a technologie - iROZHLAS.cz|https://www.irozhlas.cz/rss/irozhlas/section/veda-technologie' \
-	'Vědecký oběžník|https://belandy.substack.com/feed' \
-	'VUT Brno|https://www.vut.cz/rss/vut/media/tiskove-zpravy-f19527'
+rssfeed 'KoubskyNews'
 
 	#'PhDcomics|http://www.phdcomics.com/gradfeed.php' \
 	#'Bugemos|http://www.bugemos.com/?q=rss.xml' \

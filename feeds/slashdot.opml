@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>Slashdot</title>
+  </head>
+  <body>
+    <outline text="Slashdot" xmlUrl="http://rss.slashdot.org/Slashdot/slashdot" />
+    <outline text="SoylentNews" xmlUrl="http://soylentnews.org/index.rss" />
+  </body>
+</opml>

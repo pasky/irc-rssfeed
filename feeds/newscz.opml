@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>News CZ</title>
+  </head>
+  <body>
+    <outline text="iDnes" xmlUrl="http://servis.idnes.cz/rss.asp?c=zpravodaj" />
+    <outline text="iDnes" xmlUrl="http://servis.idnes.cz/rss.asp?c=ekonomikah" />
+    <outline text="iDnes" xmlUrl="http://servis.idnes.cz/rss.asp?c=technet" />
+    <outline text="CTK" xmlUrl="http://www.ceskenoviny.cz/sluzby/rss/domov.php" />
+    <outline text="CTK" xmlUrl="http://www.ceskenoviny.cz/sluzby/rss/svet.php" />
+    <outline text="CTK" xmlUrl="http://www.ceskenoviny.cz/sluzby/rss/pocitace.php" />
+    <outline text="Lidovky" xmlUrl="http://servis.lidovky.cz/rss.aspx" />
+    <outline text="iHNed" xmlUrl="http://ihned.cz/?m=rss" />
+	  <!--<outline text="Novinky" xmlUrl="http://www.novinky.cz/rdf/novinky.rdf" />-->
+    <outline text="Aktualne" xmlUrl="http://aktualne.centrum.cz/export/rss-hp.phtml" />
+    <outline text="Echo24" xmlUrl="http://echo24.cz/rss/s" />
+    <outline text="Britske Listy" xmlUrl="http://blisty.cz/rss.rb" />
+    <outline text="Reflex" xmlUrl="http://www.reflex.cz/rss/index.html" />
+    <outline text="Svobodne Forum" xmlUrl="http://svobodneforum.cz/feed/" />
+    <outline text="Policie" xmlUrl="http://www.policie.cz/SCRIPT/rss.aspx?nid=" />
+    <outline text="Blesk" xmlUrl="http://www.blesk.cz/rss" />
+    <outline text="Parlamentni Listy" xmlUrl="http://www.parlamentnilisty.cz/export/rss.aspx" />
+    <outline text="E15" xmlUrl="https://www.e15.cz/rss/vse" />
+    <outline text="Root" xmlUrl="http://rss.root.cz/clanky/" />
+    <outline text="Root" xmlUrl="http://rss.root.cz/zpravicky/" />
+    <outline text="ABCLinuxu" xmlUrl="http://www.abclinuxu.cz/auto/abc.rss" />
+    <outline text="ABCLinuxu" xmlUrl="http://www.abclinuxu.cz/auto/zpravicky.rss" />
+    <outline text="Kernel" xmlUrl="http://kernel.org/kdist/rss.xml" />
+    <outline text="Lupa" xmlUrl="https://www.lupa.cz/rss/clanky/" />
+    <outline text="Marigold" xmlUrl="https://www.marigold.cz/feed.xml" />
+    <outline text="Zive" xmlUrl="http://www.zive.cz/system/RSS.xml" />
+    <outline text="xkcd" xmlUrl="http://xkcd.com/rss.xml" />
+    <outline text="MegaTokyo" xmlUrl="http://www.megatokyo.com/rss/megatokyo.xml" />
+    <outline text="PBFcomics" xmlUrl="http://www.pbfcomics.com/feed/feed.xml" />
+    <outline text="smbc" xmlUrl="http://www.smbc-comics.com/rss.php" />
+    <outline text="QC" xmlUrl="http://www.questionablecontent.net/QCRSS.xml" />
+    <outline text="Osel" xmlUrl="http://www.osel.cz/rss/rss.php" />
+    <outline text="Vesmir" xmlUrl="http://vesmir.cz/feed/rss/kategorie/clanky" />
+    <outline text="Rozhlas" xmlUrl="http://www.rozhlas.cz/zpravy/rss_aktualne" />
+    <outline text="Politico" xmlUrl="http://www.politico.eu/feed/" />
+    <!--<outline text="Seznam" xmlUrl="https://www.seznam.cz/zpravy/rss" />-->
+    <outline text="DenikN" xmlUrl="https://denikn.cz/minuta/feed/?cat=17" />
+    <outline text="DenikN" xmlUrl="https://denikn.cz/feed" />
+    <outline text="HN" xmlUrl="https://news.ycombinator.com/rss" />
+  </body>
+</opml>

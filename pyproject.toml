@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rssfeed"
+version = "0.1.0"
+description = "RSS to IRC gateway"
+requires-python = ">=3.11"
+readme = "README.md"
+dependencies = [
+  "irc>=20.3",
+  "requests>=2.31",
+  "feedparser>=6.0.11",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov>=5.0"]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "pytest-cov>=5.0"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[project.scripts]
+rssfeed = "rssfeed:main"
+
+[tool.setuptools]
+py-modules = ["rssfeed"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pyright]
+pythonVersion = "3.11"
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+addopts = "-q --cov=rssfeed --cov-report=term-missing --cov-fail-under=100"
+pythonpath = ["."]
