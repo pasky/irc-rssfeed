@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+.pytest_cache/
+
+# Virtual env
+.venv/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# Editor swap/backup files
+*.swp
+*.swo
+*~
+
+# Project-specific
+logs
+0
+feeds/.*.swp
