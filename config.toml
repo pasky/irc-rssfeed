@@ -19,11 +19,11 @@ extract_url = true
 multisource = true
 
 [[instances]]
-name = "KoubskyNews"
-nick = "KoubskyNews"
-ircname = "RSS feeds Petra Koubskeho"
+name = "longreads"
+nick = "longreads"
+ircname = "RSS feeds Petra Koubskeho + HN top 2025"
 channel = "#news.cz"
 refresh_minutes = 30
-opml_path = "feeds/koubsky.opml"
+opml_path = "feeds/longreads.opml"
 extract_url = true
 multisource = true
