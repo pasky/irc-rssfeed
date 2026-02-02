@@ -18,6 +18,20 @@ from rssfeed import (
 )
 
 
+class InlineExecutor:
+    """Executor that runs tasks immediately in the caller thread (for tests)."""
+
+    def submit(self, fn, *args, **kwargs):
+        import concurrent.futures
+
+        fut: concurrent.futures.Future = concurrent.futures.Future()
+        try:
+            fut.set_result(fn(*args, **kwargs))
+        except Exception as exc:  # noqa: BLE001
+            fut.set_exception(exc)
+        return fut
+
+
 @dataclass
 class FakeSource:
     nick: str
@@ -227,6 +241,7 @@ def test_handlers_flow():
         fetcher,
         sleeper=lambda _n: None,
         printer=messages.append,
+        executor=InlineExecutor(),
     )
 
     handlers["on_connect"](reactor.connection, FakeEvent([], FakeSource("nick")))
@@ -236,7 +251,10 @@ def test_handlers_flow():
     assert reactor.scheduler.calls
 
     handlers["check_all_rss"](reactor.connection)
+    handlers["drain_queue"](reactor.connection)
+
     handlers["check_all_rss"](reactor.connection)
+    handlers["drain_queue"](reactor.connection)
 
     msg_event = FakeEvent(["~msg #target hello"], FakeSource("alice"))
     handlers["on_msg"](reactor.connection, msg_event)
@@ -276,10 +294,12 @@ def test_handlers_fetch_error():
         fetcher,
         sleeper=lambda _n: None,
         printer=errors.append,
+        executor=InlineExecutor(),
     )
 
     handlers["check_all_rss"](reactor.connection)
-    assert "Error fetching" in errors[0]
+    handlers["drain_queue"](reactor.connection)
+    assert any("Error fetching" in msg for msg in errors)
 
 
 def test_on_msg_edge_cases():
@@ -299,6 +319,7 @@ def test_on_msg_edge_cases():
         fetcher=lambda _url: [],
         sleeper=lambda _n: None,
         printer=lambda _msg: None,
+        executor=InlineExecutor(),
     )
     connection = FakeConnection()
 

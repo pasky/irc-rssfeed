@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import time
+import concurrent.futures
+import queue
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Callable
@@ -38,6 +40,8 @@ class InstanceConfig:
 @dataclass
 class State:
     seen: dict[str, dict[str, bool]] = dataclasses.field(default_factory=dict)
+    fetching: bool = False
+    pending: int = 0
 
 
 def load_config(path: str, instance_name: str) -> InstanceConfig:
@@ -108,15 +112,22 @@ def format_message(title: str, link: str, prefix: str) -> str:
     return f"{prefix}\x02{title}\x02 \x0314::\x03 {link}"
 
 
-def make_handlers(config, feeds, state, reactor, fetcher, sleeper, printer) -> dict[str, Callable]:
-    def check_rss(connection: irc.client.ServerConnection, feed: Feed) -> None:
-        printer(f"Fetching {feed.url}")
+def make_handlers(
+    config,
+    feeds,
+    state,
+    reactor,
+    fetcher,
+    sleeper,
+    printer,
+    executor: concurrent.futures.Executor,
+) -> dict[str, Callable]:
+    # Worker threads enqueue results here; the reactor thread drains the queue and
+    # performs state updates + IRC sends.
+    results: queue.Queue[tuple[Feed, list[dict[str, str]] | Exception]] = queue.Queue()
+
+    def _handle_feed_items(connection: irc.client.ServerConnection, feed: Feed, new_items: list[dict[str, str]]) -> None:
         prefix = f"[{feed.name}] " if config.multisource and feed.name else ""
-        try:
-            new_items = fetcher(feed.url)
-        except Exception as exc:  # noqa: BLE001
-            printer(f"Error fetching {feed.url}: {exc}")
-            return
         state.seen.setdefault(feed.url, {})
         delta = delta_items(state.seen[feed.url], new_items)
         for item in reversed(delta):
@@ -127,12 +138,65 @@ def make_handlers(config, feeds, state, reactor, fetcher, sleeper, printer) -> d
             printer(f"-> {prefix}: {title} {link}")
             connection.privmsg(config.channel, format_message(title, link, prefix))
 
+    def drain_queue(connection: irc.client.ServerConnection) -> None:
+        while True:
+            try:
+                feed, payload = results.get_nowait()
+            except queue.Empty:
+                break
+
+            if isinstance(payload, Exception):
+                printer(f"Error fetching {feed.url}: {payload}")
+            else:
+                _handle_feed_items(connection, feed, payload)
+
+            if state.pending > 0:
+                state.pending -= 1
+            if state.pending == 0:
+                state.fetching = False
+
+    def _submit_fetch(feed: Feed) -> None:
+        # This is the equivalent of a "threadpooled map" without blocking the
+        # reactor thread: we submit each job and collect results later.
+        printer(f"Fetching {feed.url}")
+        future = executor.submit(fetcher, feed.url)
+
+        def _done(fut: concurrent.futures.Future, _feed: Feed = feed) -> None:
+            exc = fut.exception()
+            if exc is not None:
+                results.put((_feed, exc))
+            else:
+                results.put((_feed, fut.result()))
+
+        future.add_done_callback(_done)
+
+    def check_rss(connection: irc.client.ServerConnection, feed: Feed) -> None:
+        # Backwards-compat; schedule a single-feed fetch.
+        if state.fetching:
+            return
+        state.fetching = True
+        state.pending = 1
+        _submit_fetch(feed)
+        drain_queue(connection)  # helps in tests with InlineExecutor
+
     def check_all_rss(connection: irc.client.ServerConnection) -> None:
+        if state.fetching:
+            printer("Fetch already running, skipping")
+            return
+
+        if not feeds:
+            return
+
+        state.fetching = True
+        state.pending = len(feeds)
         for feed in feeds:
-            check_rss(connection, feed)
-            sleeper(1)
+            _submit_fetch(feed)
+
+        drain_queue(connection)  # helps in tests with InlineExecutor
 
     def schedule_check(connection: irc.client.ServerConnection) -> None:
+        # Drain results regularly from within the reactor thread.
+        reactor.scheduler.execute_every(1, lambda: drain_queue(connection))
         check_all_rss(connection)
         reactor.scheduler.execute_every(
             config.refresh_minutes * 60,
@@ -165,6 +229,7 @@ def make_handlers(config, feeds, state, reactor, fetcher, sleeper, printer) -> d
     return {
         "check_rss": check_rss,
         "check_all_rss": check_all_rss,
+        "drain_queue": drain_queue,
         "schedule_check": schedule_check,
         "on_connect": on_connect,
         "on_joined": on_joined,
@@ -173,11 +238,24 @@ def make_handlers(config, feeds, state, reactor, fetcher, sleeper, printer) -> d
     }
 
 
-def run_instance(config, reactor_factory=irc.client.Reactor, fetcher=fetch_feed, sleeper=time.sleep, printer=print) -> None:
+def run_instance(
+    config,
+    reactor_factory=irc.client.Reactor,
+    fetcher=fetch_feed,
+    sleeper=time.sleep,
+    printer=print,
+    executor_factory: Callable[[int], concurrent.futures.Executor] | None = None,
+) -> None:
     feeds = parse_opml(config.opml_path)
     state = State()
     reactor = reactor_factory()
-    handlers = make_handlers(config, feeds, state, reactor, fetcher, sleeper, printer)
+
+    if executor_factory is None:
+        executor_factory = lambda workers: concurrent.futures.ThreadPoolExecutor(max_workers=workers)
+    max_workers = max(1, min(8, len(feeds) or 1))
+    executor = executor_factory(max_workers)
+
+    handlers = make_handlers(config, feeds, state, reactor, fetcher, sleeper, printer, executor)
     reactor.add_global_handler("welcome", handlers["on_connect"])
     reactor.add_global_handler("endofnames", handlers["on_joined"])
     reactor.add_global_handler("cversion", handlers["on_cversion"])
