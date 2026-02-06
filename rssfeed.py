@@ -179,6 +179,8 @@ def make_handlers(
             connection.privmsg(config.channel, format_message(title, link, prefix, desc))
 
     def drain_queue(connection: irc.client.ServerConnection) -> None:
+        if not connection.is_connected():
+            return
         while True:
             try:
                 feed, payload = results.get_nowait()
@@ -188,7 +190,11 @@ def make_handlers(
             if isinstance(payload, Exception):
                 printer(f"Error fetching {feed.url}: {payload}")
             else:
-                _handle_feed_items(connection, feed, payload)
+                try:
+                    _handle_feed_items(connection, feed, payload)
+                except irc.client.ServerNotConnectedError:
+                    printer("Lost connection while sending, will retry after reconnect")
+                    return
 
             if state.pending > 0:
                 state.pending -= 1
@@ -249,6 +255,20 @@ def make_handlers(
     def on_joined(connection: irc.client.ServerConnection, _event: irc.client.Event) -> None:
         schedule_check(connection)
 
+    def on_disconnect(connection: irc.client.ServerConnection, _event: irc.client.Event) -> None:
+        printer(f"Disconnected from server, reconnecting in 60 seconds...")
+        sleeper(60)
+        try:
+            connection.connect(
+                config.server,
+                config.port,
+                config.nick,
+                ircname=f"{config.ircname} (RSS feed)",
+            )
+        except irc.client.ServerConnectionError as e:
+            printer(f"Reconnect failed: {e}, will retry on next scheduler tick")
+            reactor.scheduler.execute_after(60, lambda: on_disconnect(connection, _event))
+
     def on_cversion(connection: irc.client.ServerConnection, event: irc.client.Event) -> None:
         connection.ctcp_reply(event.source.nick, "VERSION RSS->IRC gateway")
 
@@ -273,6 +293,7 @@ def make_handlers(
         "schedule_check": schedule_check,
         "on_connect": on_connect,
         "on_joined": on_joined,
+        "on_disconnect": on_disconnect,
         "on_cversion": on_cversion,
         "on_msg": on_msg,
     }
@@ -298,6 +319,7 @@ def run_instance(
     handlers = make_handlers(config, feeds, state, reactor, fetcher, sleeper, printer, executor)
     reactor.add_global_handler("welcome", handlers["on_connect"])
     reactor.add_global_handler("endofnames", handlers["on_joined"])
+    reactor.add_global_handler("disconnect", handlers["on_disconnect"])
     reactor.add_global_handler("cversion", handlers["on_cversion"])
     reactor.add_global_handler("msg", handlers["on_msg"])
     printer(f"Connecting to {config.server}:{config.port} as {config.nick}")

@@ -48,9 +48,13 @@ class FakeEvent:
 class FakeScheduler:
     def __init__(self) -> None:
         self.calls: list[tuple[int, object]] = []
+        self.delayed: list[tuple[int, object]] = []
 
     def execute_every(self, interval: int, func) -> None:
         self.calls.append((interval, func))
+
+    def execute_after(self, delay: int, func) -> None:
+        self.delayed.append((delay, func))
 
 
 class FakeConnection:
@@ -58,6 +62,7 @@ class FakeConnection:
         self.joined: list[str] = []
         self.privmsgs: list[tuple[str, str]] = []
         self.ctcps: list[tuple[str, str]] = []
+        self._connected: bool = True
 
     def join(self, channel: str) -> None:
         self.joined.append(channel)
@@ -67,6 +72,9 @@ class FakeConnection:
 
     def ctcp_reply(self, target: str, message: str) -> None:
         self.ctcps.append((target, message))
+
+    def is_connected(self) -> bool:
+        return self._connected
 
 
 class FakeReactor:
@@ -474,7 +482,7 @@ def test_run_instance_registers_handlers(tmp_path):
 
     assert reactor.connected
     assert reactor.processed is True
-    assert set(reactor.handlers) == {"welcome", "endofnames", "cversion", "msg"}
+    assert set(reactor.handlers) == {"welcome", "endofnames", "disconnect", "cversion", "msg"}
 
 
 def test_main_invokes_run_instance(tmp_path, monkeypatch):
@@ -503,3 +511,139 @@ opml_path = "feeds.opml"
 
     main()
     assert called["name"] == "demo"
+
+
+def test_drain_queue_skips_when_disconnected():
+    """drain_queue returns immediately when connection is not connected."""
+    config = InstanceConfig(
+        name="demo", nick="demo", ircname="Demo", channel="#chan",
+        refresh_minutes=1, opml_path="feeds.opml",
+    )
+    feeds = [Feed(url="http://example.com/rss", name="Source")]
+    state = State()
+    reactor = FakeReactor()
+    messages: list[str] = []
+
+    handlers = make_handlers(
+        config, feeds, state, reactor,
+        fetcher=lambda _url: [{"title": "T", "link": "http://x"}],
+        sleeper=lambda _n: None, printer=messages.append,
+        executor=InlineExecutor(),
+    )
+
+    # Disconnect the fake connection
+    reactor.connection._connected = False
+    handlers["on_joined"](reactor.connection, FakeEvent([], FakeSource("nick")))
+    # drain_queue should skip; no privmsgs sent
+    assert reactor.connection.privmsgs == []
+
+
+def test_drain_queue_handles_server_not_connected_error():
+    """drain_queue catches ServerNotConnectedError mid-send."""
+    import irc.client
+
+    config = InstanceConfig(
+        name="demo", nick="demo", ircname="Demo", channel="#chan",
+        refresh_minutes=1, opml_path="feeds.opml",
+    )
+    feeds = [Feed(url="http://example.com/rss", name="Source")]
+    state = State()
+    reactor = FakeReactor()
+    messages: list[str] = []
+
+    call_count = 0
+
+    def fetcher(_url):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return [{"title": "T1", "link": "http://x"}]
+        return [{"title": "T1", "link": "http://x"}, {"title": "T2", "link": "http://y"}]
+
+    class DisconnectingConnection(FakeConnection):
+        def privmsg(self, target, message):
+            raise irc.client.ServerNotConnectedError("Not connected.")
+
+    conn = DisconnectingConnection()
+
+    handlers = make_handlers(
+        config, feeds, state, reactor,
+        fetcher=fetcher,
+        sleeper=lambda _n: None, printer=messages.append,
+        executor=InlineExecutor(),
+    )
+
+    # First call seeds seen items
+    handlers["check_all_rss"](conn)
+    state.fetching = False  # reset
+    # Second call has a new item -> triggers privmsg -> raises
+    handlers["check_all_rss"](conn)
+    assert any("Lost connection" in m for m in messages), messages
+
+
+def test_on_disconnect_reconnects():
+    """on_disconnect sleeps then reconnects."""
+    config = InstanceConfig(
+        name="demo", nick="demo", ircname="Demo", channel="#chan",
+        refresh_minutes=1, opml_path="feeds.opml",
+        server="irc.test", port=6667,
+    )
+    feeds = [Feed(url="http://example.com/rss", name="Source")]
+    state = State()
+    reactor = FakeReactor()
+    messages: list[str] = []
+    sleeps: list = []
+
+    class ReconnectableConnection(FakeConnection):
+        def __init__(self):
+            super().__init__()
+            self.connect_calls: list[tuple] = []
+
+        def connect(self, server, port, nick, ircname=""):
+            self.connect_calls.append((server, port, nick, ircname))
+
+    conn = ReconnectableConnection()
+
+    handlers = make_handlers(
+        config, feeds, state, reactor,
+        fetcher=lambda _url: [],
+        sleeper=sleeps.append, printer=messages.append,
+        executor=InlineExecutor(),
+    )
+
+    handlers["on_disconnect"](conn, FakeEvent([], FakeSource("nick")))
+    assert sleeps == [60]
+    assert conn.connect_calls == [("irc.test", 6667, "demo", "Demo (RSS feed)")]
+
+
+def test_on_disconnect_schedules_retry_on_failure():
+    """on_disconnect schedules retry when reconnect fails."""
+    import irc.client
+
+    config = InstanceConfig(
+        name="demo", nick="demo", ircname="Demo", channel="#chan",
+        refresh_minutes=1, opml_path="feeds.opml",
+        server="irc.test", port=6667,
+    )
+    feeds = [Feed(url="http://example.com/rss", name="Source")]
+    state = State()
+    reactor = FakeReactor()
+    messages: list[str] = []
+
+    class FailingConnection(FakeConnection):
+        def connect(self, server, port, nick, ircname=""):
+            raise irc.client.ServerConnectionError("fail")
+
+    conn = FailingConnection()
+
+    handlers = make_handlers(
+        config, feeds, state, reactor,
+        fetcher=lambda _url: [],
+        sleeper=lambda _n: None, printer=messages.append,
+        executor=InlineExecutor(),
+    )
+
+    handlers["on_disconnect"](conn, FakeEvent([], FakeSource("nick")))
+    assert any("Reconnect failed" in m for m in messages)
+    assert len(reactor.scheduler.delayed) == 1
+    assert reactor.scheduler.delayed[0][0] == 60

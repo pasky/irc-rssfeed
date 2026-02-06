@@ -30,6 +30,9 @@ class FakeConnection:
     def privmsg(self, target: str, message: str) -> None:
         self.privmsgs.append((target, message))
 
+    def is_connected(self) -> bool:
+        return True
+
 
 class FakeReactor:
     def __init__(self) -> None:
