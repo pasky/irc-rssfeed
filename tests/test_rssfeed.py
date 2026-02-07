@@ -485,6 +485,92 @@ def test_run_instance_registers_handlers(tmp_path):
     assert set(reactor.handlers) == {"welcome", "endofnames", "disconnect", "cversion", "msg"}
 
 
+def test_run_instance_falls_back_to_absolute_fqdn(tmp_path):
+    import irc.client
+
+    opml_path = tmp_path / "feeds.opml"
+    opml_path.write_text(
+        """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<opml version=\"2.0\"><body>
+  <outline text=\"Example\" xmlUrl=\"http://example.com/rss\" />
+</body></opml>""",
+        encoding="utf-8",
+    )
+
+    class FallbackReactor(FakeReactor):
+        def connect(self, server: str, port: int, nick: str, ircname: str):
+            self.connected.append((server, port, nick, ircname))
+            if server == "irc.test":
+                raise irc.client.ServerConnectionError("dns failed")
+            return self.connection
+
+    config = InstanceConfig(
+        name="demo",
+        nick="demo",
+        ircname="Demo",
+        channel="#chan",
+        refresh_minutes=1,
+        opml_path=str(opml_path),
+        server="irc.test",
+    )
+    reactor = FallbackReactor()
+
+    run_instance(
+        config,
+        reactor_factory=lambda: reactor,
+        fetcher=lambda _url: [],
+        sleeper=lambda _n: None,
+        printer=lambda _msg: None,
+    )
+
+    assert [call[0] for call in reactor.connected[:2]] == ["irc.test", "irc.test."]
+    assert reactor.processed is True
+
+
+def test_run_instance_retries_and_exits_on_connect_failure(tmp_path):
+    import irc.client
+
+    opml_path = tmp_path / "feeds.opml"
+    opml_path.write_text(
+        """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<opml version=\"2.0\"><body>
+  <outline text=\"Example\" xmlUrl=\"http://example.com/rss\" />
+</body></opml>""",
+        encoding="utf-8",
+    )
+
+    class FailingReactor(FakeReactor):
+        def connect(self, server: str, port: int, nick: str, ircname: str):
+            self.connected.append((server, port, nick, ircname))
+            raise irc.client.ServerConnectionError("dns failed")
+
+    config = InstanceConfig(
+        name="demo",
+        nick="demo",
+        ircname="Demo",
+        channel="#chan",
+        refresh_minutes=1,
+        opml_path=str(opml_path),
+        server="irc.test",
+    )
+    reactor = FailingReactor()
+    sleeps: list[int] = []
+    logs: list[str] = []
+
+    with pytest.raises(SystemExit):
+        run_instance(
+            config,
+            reactor_factory=lambda: reactor,
+            fetcher=lambda _url: [],
+            sleeper=sleeps.append,
+            printer=logs.append,
+        )
+
+    assert len(reactor.connected) == 6
+    assert sleeps == [5, 5]
+    assert any("Connect failed for irc.test" in msg for msg in logs)
+
+
 def test_main_invokes_run_instance(tmp_path, monkeypatch):
     config_path = tmp_path / "config.toml"
     config_path.write_text(

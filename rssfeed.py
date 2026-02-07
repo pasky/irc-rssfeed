@@ -323,13 +323,19 @@ def run_instance(
     reactor.add_global_handler("cversion", handlers["on_cversion"])
     reactor.add_global_handler("msg", handlers["on_msg"])
     printer(f"Connecting to {config.server}:{config.port} as {config.nick}")
-    reactor.server().connect(
-        config.server,
-        config.port,
-        config.nick,
-        ircname=f"{config.ircname} (RSS feed)",
-    )
-    reactor.process_forever()
+    connection = reactor.server()
+    hosts = [config.server] if config.server.endswith(".") else [config.server, f"{config.server}."]
+    for attempt in range(3):
+        for host in hosts:
+            try:
+                connection.connect(host, config.port, config.nick, ircname=f"{config.ircname} (RSS feed)")
+                reactor.process_forever()
+                return
+            except irc.client.ServerConnectionError as exc:
+                printer(f"Connect failed for {host}:{config.port}: {exc}")
+        if attempt < 2:
+            sleeper(5)
+    raise SystemExit(f"Unable to connect to IRC server(s): {', '.join(hosts)}")
 
 
 def main() -> None:
