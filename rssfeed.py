@@ -33,12 +33,12 @@ class InstanceConfig:
     channel: str
     refresh_minutes: int
     opml_path: str
-    extract_url: bool = False
-    multisource: bool = False
+    extract_url: bool
+    multisource: bool
     # Append an extra ":: <description>" segment (truncated) to each IRC message.
-    include_description: bool = False
-    server: str = "open.ircnet.net"
-    port: int = 6667
+    include_description: bool
+    server: str
+    port: int
 
 
 @dataclass
@@ -63,7 +63,7 @@ def load_config(path: str, instance_name: str) -> InstanceConfig:
                 extract_url=bool(entry.get("extract_url", False)),
                 multisource=bool(entry.get("multisource", False)),
                 include_description=bool(entry.get("include_description", entry.get("longreads", False))),
-                server=entry.get("server", "open.ircnet.net"),
+                server=entry.get("server", "irc.ircnet.com"),
                 port=int(entry.get("port", 6667)),
             )
     raise SystemExit(f"Instance '{instance_name}' not found in {path}")
