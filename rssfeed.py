@@ -33,12 +33,12 @@ class InstanceConfig:
     channel: str
     refresh_minutes: int
     opml_path: str
-    extract_url: bool
-    multisource: bool
+    extract_url: bool = False
+    multisource: bool = False
     # Append an extra ":: <description>" segment (truncated) to each IRC message.
-    include_description: bool
-    server: str
-    port: int
+    include_description: bool = False
+    server: str = "irc.ircnet.com"
+    port: int = 6667
 
 
 @dataclass
@@ -53,6 +53,7 @@ def load_config(path: str, instance_name: str) -> InstanceConfig:
         data = tomllib.load(handle)
     for entry in data.get("instances", []):
         if entry.get("name") == instance_name:
+            # Optional keys fall back to InstanceConfig defaults.
             return InstanceConfig(
                 name=entry["name"],
                 nick=entry["nick"],
@@ -60,11 +61,15 @@ def load_config(path: str, instance_name: str) -> InstanceConfig:
                 channel=entry["channel"],
                 refresh_minutes=int(entry["refresh_minutes"]),
                 opml_path=entry["opml_path"],
-                extract_url=bool(entry.get("extract_url", False)),
-                multisource=bool(entry.get("multisource", False)),
-                include_description=bool(entry.get("include_description", entry.get("longreads", False))),
-                server=entry.get("server", "irc.ircnet.com"),
-                port=int(entry.get("port", 6667)),
+                extract_url=bool(entry["extract_url"]) if "extract_url" in entry else InstanceConfig.extract_url,
+                multisource=bool(entry["multisource"]) if "multisource" in entry else InstanceConfig.multisource,
+                include_description=(
+                    bool(entry["include_description"]) if "include_description" in entry
+                    else bool(entry["longreads"]) if "longreads" in entry
+                    else InstanceConfig.include_description
+                ),
+                server=entry["server"] if "server" in entry else InstanceConfig.server,
+                port=int(entry["port"]) if "port" in entry else InstanceConfig.port,
             )
     raise SystemExit(f"Instance '{instance_name}' not found in {path}")
 
