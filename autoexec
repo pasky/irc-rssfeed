@@ -14,7 +14,7 @@ rssfeed 'slashdot'
 
 rssfeed 'newscz'
 
-rssfeed 'KoubskyNews'
+rssfeed 'longreads'
 
 	#'PhDcomics|http://www.phdcomics.com/gradfeed.php' \
 	#'Bugemos|http://www.bugemos.com/?q=rss.xml' \
