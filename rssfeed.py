@@ -7,6 +7,7 @@ import concurrent.futures
 import queue
 import html
 import re
+from collections import deque
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Callable
@@ -46,6 +47,10 @@ class State:
     seen: dict[str, dict[str, bool]] = dataclasses.field(default_factory=dict)
     fetching: bool = False
     pending: int = 0
+    # Outbound PRIVMSG queue; drained gradually to avoid IRC flood disconnects.
+    outgoing: deque[tuple[str, str]] = dataclasses.field(default_factory=deque)
+    # Guard against adding duplicate scheduler jobs on reconnect.
+    scheduler_started: bool = False
 
 
 def load_config(path: str, instance_name: str) -> InstanceConfig:
@@ -170,7 +175,18 @@ def make_handlers(
     # performs state updates + IRC sends.
     results: queue.Queue[tuple[Feed, list[dict[str, str]] | Exception]] = queue.Queue()
 
-    def _handle_feed_items(connection: irc.client.ServerConnection, feed: Feed, new_items: list[dict[str, str]]) -> None:
+    def _send_next_outgoing(connection: irc.client.ServerConnection) -> None:
+        if not state.outgoing:
+            return
+
+        target, message = state.outgoing[0]
+        try:
+            connection.privmsg(target, message)
+            state.outgoing.popleft()
+        except irc.client.ServerNotConnectedError:
+            printer("Lost connection while sending, will retry after reconnect")
+
+    def _handle_feed_items(_connection: irc.client.ServerConnection, feed: Feed, new_items: list[dict[str, str]]) -> None:
         prefix = f"[{feed.name}] " if config.multisource and feed.name else ""
         state.seen.setdefault(feed.url, {})
         delta = delta_items(state.seen[feed.url], new_items)
@@ -181,11 +197,12 @@ def make_handlers(
                 link = extract_url(link)
             printer(f"-> {prefix}: {title} {link}")
             desc = _item_description(item) if config.include_description else None
-            connection.privmsg(config.channel, format_message(title, link, prefix, desc))
+            state.outgoing.append((config.channel, format_message(title, link, prefix, desc)))
 
     def drain_queue(connection: irc.client.ServerConnection) -> None:
         if not connection.is_connected():
             return
+
         while True:
             try:
                 feed, payload = results.get_nowait()
@@ -195,16 +212,15 @@ def make_handlers(
             if isinstance(payload, Exception):
                 printer(f"Error fetching {feed.url}: {payload}")
             else:
-                try:
-                    _handle_feed_items(connection, feed, payload)
-                except irc.client.ServerNotConnectedError:
-                    printer("Lost connection while sending, will retry after reconnect")
-                    return
+                _handle_feed_items(connection, feed, payload)
 
             if state.pending > 0:
                 state.pending -= 1
             if state.pending == 0:
                 state.fetching = False
+
+        # Pace outgoing PRIVMSG traffic to avoid IRC excess-flood disconnects.
+        _send_next_outgoing(connection)
 
     def _submit_fetch(feed: Feed) -> None:
         # This is the equivalent of a "threadpooled map" without blocking the
@@ -246,13 +262,17 @@ def make_handlers(
         drain_queue(connection)  # helps in tests with InlineExecutor
 
     def schedule_check(connection: irc.client.ServerConnection) -> None:
-        # Drain results regularly from within the reactor thread.
-        reactor.scheduler.execute_every(1, lambda: drain_queue(connection))
+        if not state.scheduler_started:
+            # Drain results regularly from within the reactor thread.
+            reactor.scheduler.execute_every(1, lambda: drain_queue(connection))
+            reactor.scheduler.execute_every(
+                config.refresh_minutes * 60,
+                lambda: check_all_rss(connection),
+            )
+            state.scheduler_started = True
+
+        # Trigger one immediate check after join/rejoin.
         check_all_rss(connection)
-        reactor.scheduler.execute_every(
-            config.refresh_minutes * 60,
-            lambda: check_all_rss(connection),
-        )
 
     def on_connect(connection: irc.client.ServerConnection, _event: irc.client.Event) -> None:
         connection.join(config.channel)
