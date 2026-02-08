@@ -17,6 +17,7 @@ refresh_minutes = 10
 opml_path = "feeds/newscz.opml"
 extract_url = true
 multisource = true
+server = "irc.felk.cvut.cz"
 
 [[instances]]
 name = "longreads"
