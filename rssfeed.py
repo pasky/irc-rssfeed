@@ -134,10 +134,16 @@ def _strip_html(text: str) -> str:
     return text.strip()
 
 
+def _sanitize_irc_text(text: str) -> str:
+    text = text.replace("\r", " ").replace("\n", " ").replace("\x00", "")
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
 def _item_description(item: dict[str, str]) -> str:
     # feedparser uses 'summary' frequently; some feeds use 'description'.
     desc = (item.get("summary") or item.get("description") or "").strip()
-    return _strip_html(desc)
+    return _sanitize_irc_text(_strip_html(desc))
 
 
 def format_message(title: str, link: str, prefix: str, description: str | None = None) -> str:
@@ -180,21 +186,31 @@ def make_handlers(
             return
 
         target, message = state.outgoing[0]
+        safe_target = _sanitize_irc_text(target)
+        safe_message = _sanitize_irc_text(message)
+        if not safe_target or not safe_message:
+            state.outgoing.popleft()
+            return
+
         try:
-            connection.privmsg(target, message)
+            connection.privmsg(safe_target, safe_message)
             state.outgoing.popleft()
         except irc.client.ServerNotConnectedError:
             printer("Lost connection while sending, will retry after reconnect")
+        except irc.client.InvalidCharacters as exc:
+            printer(f"Dropped invalid IRC message: {exc}")
+            state.outgoing.popleft()
 
     def _handle_feed_items(_connection: irc.client.ServerConnection, feed: Feed, new_items: list[dict[str, str]]) -> None:
-        prefix = f"[{feed.name}] " if config.multisource and feed.name else ""
+        source_name = _sanitize_irc_text(feed.name or "") if config.multisource else ""
+        prefix = f"[{source_name}] " if source_name else ""
         state.seen.setdefault(feed.url, {})
         delta = delta_items(state.seen[feed.url], new_items)
         for item in reversed(delta):
-            title = (item.get("title") or "").strip()
-            link = (item.get("link") or "").strip()
+            title = _sanitize_irc_text((item.get("title") or "").strip())
+            link = _sanitize_irc_text((item.get("link") or "").strip())
             if config.extract_url:
-                link = extract_url(link)
+                link = _sanitize_irc_text(extract_url(link))
             printer(f"-> {prefix}: {title} {link}")
             desc = _item_description(item) if config.include_description else None
             state.outgoing.append((config.channel, format_message(title, link, prefix, desc)))
@@ -305,9 +321,13 @@ def make_handlers(
         if message.startswith("~msg "):
             parts = message.split(" ", 2)
             if len(parts) == 3:
-                target, body = parts[1], parts[2]
-                connection.privmsg(target, body)
-                connection.privmsg(event.source.nick, f"Sent to {target}: {body}")
+                target, body = _sanitize_irc_text(parts[1]), _sanitize_irc_text(parts[2])
+                reply_to = _sanitize_irc_text(event.source.nick)
+                if target and body:
+                    state.outgoing.append((target, body))
+                    if reply_to:
+                        state.outgoing.append((reply_to, f"Sent to {target}: {body}"))
+                    drain_queue(connection)
         elif message.startswith("~refresh"):
             check_all_rss(connection)
 
@@ -369,7 +389,16 @@ def main() -> None:
     parser.add_argument("--instance", required=True)
     args = parser.parse_args()
     config = load_config(args.config, args.instance)
-    run_instance(config)
+
+    while True:
+        try:
+            run_instance(config)
+            return
+        except KeyboardInterrupt:  # pragma: no cover
+            raise
+        except (Exception, SystemExit) as exc:  # noqa: BLE001
+            print(f"Runtime failure: {exc}; restarting in 5 seconds")
+            time.sleep(5)
 
 
 if __name__ == "__main__":  # pragma: no cover

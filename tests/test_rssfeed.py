@@ -733,3 +733,157 @@ def test_on_disconnect_schedules_retry_on_failure():
     assert any("Reconnect failed" in m for m in messages)
     assert len(reactor.scheduler.delayed) == 1
     assert reactor.scheduler.delayed[0][0] == 60
+
+
+def test_feed_messages_strip_carriage_returns_and_newlines():
+    config = InstanceConfig(
+        name="demo",
+        nick="demo",
+        ircname="Demo",
+        channel="#chan",
+        refresh_minutes=1,
+        opml_path="feeds.opml",
+        include_description=True,
+    )
+    feeds = [Feed(url="http://example.com/rss")]
+    state = State()
+    reactor = FakeReactor()
+
+    call_count = 0
+
+    def fetcher(_url: str):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return [{"title": "Warmup", "link": "http://x"}]
+        return [
+            {"title": "Warmup", "link": "http://x"},
+            {
+                "title": "Line 1\r\nLine 2",
+                "link": "http://example.com/a\r\n",
+                "summary": "<p>desc\r\nline</p>",
+            },
+        ]
+
+    class StrictConnection(FakeConnection):
+        def privmsg(self, target: str, message: str) -> None:
+            assert "\r" not in message
+            assert "\n" not in message
+            super().privmsg(target, message)
+
+    conn = StrictConnection()
+    handlers = make_handlers(
+        config,
+        feeds,
+        state,
+        reactor,
+        fetcher=fetcher,
+        sleeper=lambda _n: None,
+        printer=lambda _msg: None,
+        executor=InlineExecutor(),
+    )
+
+    handlers["check_all_rss"](conn)
+    state.fetching = False
+    handlers["check_all_rss"](conn)
+
+    sent = [msg for _target, msg in conn.privmsgs]
+    assert any("Line 1 Line 2" in msg for msg in sent)
+    assert any("desc line" in msg for msg in sent)
+
+
+def test_drain_queue_drops_invalid_character_messages():
+    import irc.client
+
+    config = InstanceConfig(
+        name="demo", nick="demo", ircname="Demo", channel="#chan",
+        refresh_minutes=1, opml_path="feeds.opml",
+    )
+    feeds = [Feed(url="http://example.com/rss", name="Source")]
+    state = State()
+    reactor = FakeReactor()
+    messages: list[str] = []
+
+    class InvalidConnection(FakeConnection):
+        def privmsg(self, target: str, message: str) -> None:
+            raise irc.client.InvalidCharacters(message)
+
+    conn = InvalidConnection()
+    handlers = make_handlers(
+        config,
+        feeds,
+        state,
+        reactor,
+        fetcher=lambda _url: [{"title": "T1", "link": "http://x"}],
+        sleeper=lambda _n: None,
+        printer=messages.append,
+        executor=InlineExecutor(),
+    )
+
+    state.outgoing.append(("#chan", "hello"))
+    handlers["drain_queue"](conn)
+
+    assert any("Dropped invalid IRC message" in msg for msg in messages)
+    assert not state.outgoing
+
+
+def test_drain_queue_drops_empty_sanitized_messages():
+    config = InstanceConfig(
+        name="demo", nick="demo", ircname="Demo", channel="#chan",
+        refresh_minutes=1, opml_path="feeds.opml",
+    )
+    state = State()
+    reactor = FakeReactor()
+    handlers = make_handlers(
+        config,
+        [Feed(url="http://example.com/rss")],
+        state,
+        reactor,
+        fetcher=lambda _url: [],
+        sleeper=lambda _n: None,
+        printer=lambda _msg: None,
+        executor=InlineExecutor(),
+    )
+    conn = FakeConnection()
+    state.outgoing.append(("#chan", "\r\n\t"))
+
+    handlers["drain_queue"](conn)
+    assert conn.privmsgs == []
+    assert not state.outgoing
+
+
+def test_main_retries_after_runtime_failure(tmp_path, monkeypatch):
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+[[instances]]
+name = "demo"
+nick = "demo"
+ircname = "Demo"
+channel = "#demo"
+refresh_minutes = 5
+opml_path = "feeds.opml"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    calls = {"count": 0}
+    logs: list[str] = []
+    sleeps: list[int] = []
+
+    def fake_run_instance(_config):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr("rssfeed.run_instance", fake_run_instance)
+    monkeypatch.setattr("rssfeed.time.sleep", sleeps.append)
+    monkeypatch.setattr("builtins.print", logs.append)
+    monkeypatch.setattr("sys.argv", ["rssfeed.py", "--config", str(config_path), "--instance", "demo"])
+
+    from rssfeed import main
+
+    main()
+    assert calls["count"] == 2
+    assert sleeps == [5]
+    assert any("Runtime failure" in msg for msg in logs)
