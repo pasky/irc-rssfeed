@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 import pytest
 
@@ -571,6 +572,14 @@ def test_run_instance_retries_and_exits_on_connect_failure(tmp_path):
     assert any("Connect failed for irc.test" in msg for msg in logs)
 
 
+def test_log_print_adds_timestamp(capsys):
+    from rssfeed import log_print
+
+    log_print("hello world")
+    out = capsys.readouterr().out
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} hello world\n", out)
+
+
 def test_main_invokes_run_instance(tmp_path, monkeypatch):
     config_path = tmp_path / "config.toml"
     config_path.write_text(
@@ -878,7 +887,7 @@ opml_path = "feeds.opml"
 
     monkeypatch.setattr("rssfeed.run_instance", fake_run_instance)
     monkeypatch.setattr("rssfeed.time.sleep", sleeps.append)
-    monkeypatch.setattr("builtins.print", logs.append)
+    monkeypatch.setattr("rssfeed.log_print", logs.append)
     monkeypatch.setattr("sys.argv", ["rssfeed.py", "--config", str(config_path), "--instance", "demo"])
 
     from rssfeed import main

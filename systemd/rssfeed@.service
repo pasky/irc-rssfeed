@@ -7,6 +7,7 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=/home/pasky/rss
 Environment=PATH=/home/pasky/.pyenv/versions/3.13.2/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
 ExecStart=/home/pasky/.pyenv/versions/3.13.2/bin/uv run python ./rssfeed.py --config config.toml --instance %i
 StandardOutput=append:/a/logs/rss/%i.log
 StandardError=append:/a/logs/rss/%i.log

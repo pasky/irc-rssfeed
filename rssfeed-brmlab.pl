@@ -11,6 +11,9 @@ use lib '/srv/home/pasky/perl/share/perl/5.8.4/';
 
 $| = 1;
 
+# Timestamp prefix for log lines.
+sub ts { return scalar(localtime) . " "; }
+
 
 ### Configuration section
 # In our example setup, we are going to deliver Slashdot headlines.
@@ -58,7 +61,7 @@ use URI::Escape;
 use vars qw ($irc $conn);
 
 $irc = new Net::IRC;
-print "Connecting to server ".$server.":".$port." with nick ".$nick."...\n";
+print ts()."Connecting to server ".$server.":".$port." with nick ".$nick."...\n";
 $conn = $irc->newconn (Nick => $nick, Server => $server, Port => $port,
                        Ircname => $ircname);
 
@@ -70,7 +73,7 @@ $conn = $irc->newconn (Nick => $nick, Server => $server, Port => $port,
 sub on_connect {
   my ($self, $event) = @_;
 
-  print "Joining channel ".$channel."...\n";
+  print ts()."Joining channel ".$channel."...\n";
   $self->join ($channel);
 }
 
@@ -81,7 +84,7 @@ $conn->add_handler ('welcome', \&on_connect);
 sub on_joined {
   my ($self, $event) = @_;
 
-  print "Joined channel ".$channel."...\n";
+  print ts()."Joined channel ".$channel."...\n";
 
   $SIG{ALRM} = \&check_all_rss;
   check_all_rss();
@@ -94,7 +97,7 @@ $conn->add_handler ('endofnames', \&on_joined);
 sub on_cversion {
   my ($self, $event) = @_;
 
-  print "Got version query from ".$event->nick."\n";
+  print ts()."Got version query from ".$event->nick."\n";
   $self->ctcp_reply ($event->nick, 'VERSION RSS->IRS gateway IRC hack');
 }
 
@@ -106,7 +109,7 @@ sub on_msg {
   my ($self, $event) = @_;
 
   my @args = $event->args;
-  print "Got MSG from ".$event->nick.": @args\n" if @args;
+  print ts()."Got MSG from ".$event->nick.": @args\n" if @args;
   return unless (@args);
   if ($args[0] =~ s/^~msg\s+(\S+)\s+//) {
     $self->privmsg ($1, $args[0]);
@@ -166,7 +169,7 @@ my $data = $response->content();
   $data =~ s/&nbsp;/ /g;
   eval { $feed = $rss->parse($data); };
   unless ($feed) {
-    print STDERR "Error fetching $rss_url! ($data)\n";
+    print STDERR ts()."Error fetching $rss_url! ($data)\n";
     return ();
   }
 

@@ -10,6 +10,7 @@ import re
 from collections import deque
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Callable
 from urllib.parse import unquote
 import xml.etree.ElementTree as ET
@@ -110,6 +111,11 @@ def delta_items(seen: dict[str, bool], new_items: Iterable[dict[str, str]]) -> l
     return [] if empty else delta
 
 
+def log_print(*args: object) -> None:
+    """Print with a timestamp prefix; flush so redirected logs stay current."""
+    print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), *args, flush=True)
+
+
 def extract_url(link: str) -> str:
     if "url=" not in link:
         return link
@@ -124,6 +130,7 @@ def extract_url(link: str) -> str:
 
 
 IRC_SAFE_MESSAGE_LEN = 400  # conservative; RFC max line is 512 incl. overhead
+OUTGOING_SEND_INTERVAL_SECONDS = 2  # one PRIVMSG every 2 seconds
 
 
 def _strip_html(text: str) -> str:
@@ -280,7 +287,10 @@ def make_handlers(
     def schedule_check(connection: irc.client.ServerConnection) -> None:
         if not state.scheduler_started:
             # Drain results regularly from within the reactor thread.
-            reactor.scheduler.execute_every(1, lambda: drain_queue(connection))
+            reactor.scheduler.execute_every(
+                OUTGOING_SEND_INTERVAL_SECONDS,
+                lambda: drain_queue(connection),
+            )
             reactor.scheduler.execute_every(
                 config.refresh_minutes * 60,
                 lambda: check_all_rss(connection),
@@ -349,7 +359,7 @@ def run_instance(
     reactor_factory=irc.client.Reactor,
     fetcher=fetch_feed,
     sleeper=time.sleep,
-    printer=print,
+    printer=log_print,
     executor_factory: Callable[[int], concurrent.futures.Executor] | None = None,
 ) -> None:
     feeds = parse_opml(config.opml_path)
@@ -397,7 +407,7 @@ def main() -> None:
         except KeyboardInterrupt:  # pragma: no cover
             raise
         except (Exception, SystemExit) as exc:  # noqa: BLE001
-            print(f"Runtime failure: {exc}; restarting in 5 seconds")
+            log_print(f"Runtime failure: {exc}; restarting in 5 seconds")
             time.sleep(5)
 
 
