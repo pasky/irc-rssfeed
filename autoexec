@@ -1,20 +1,4 @@
 #!/bin/bash
-
-#./rssfeed.sh ./rssfeed-brmlab.pl brmwiki brmlab.cz \#brmlab 1 http://brmlab.cz/feed.php?view=pages http://soup.brmlab.cz/rss/original >>brmwiki.log 2>&1 &
-./rssfeed.sh ./rssfeed-brmlab.pl brmwiki brmlab.cz \#brmlab 1 https://brmlab.cz/feed.php?view=pages >>brmwiki.log 2>&1 &
-
-function rssfeed () {
-	uv run python ./rssfeed.py --config config.toml --instance "$1" >>/a/logs/rss/$1.log 2>&1 &
-	sleep 2
-}
-
-
-
-rssfeed 'slashdot'
-
-rssfeed 'newscz'
-
-rssfeed 'longreads'
-
-	#'PhDcomics|http://www.phdcomics.com/gradfeed.php' \
-	#'Bugemos|http://www.bugemos.com/?q=rss.xml' \
+# Obsolete: instances now run as systemd user services.
+# See README.md ("Run as systemd user services").
+systemctl --user status rssfeed@slashdot rssfeed@newscz rssfeed@longreads rssfeed-brmlab

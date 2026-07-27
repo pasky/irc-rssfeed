@@ -1,0 +1,16 @@
+[Unit]
+Description=brmlab wiki RSS-to-IRC bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pasky/rss
+ExecStart=/usr/bin/perl -w ./rssfeed-brmlab.pl brmwiki brmlab.cz #brmlab 1 https://brmlab.cz/feed.php?view=pages
+StandardOutput=append:/home/pasky/rss/brmwiki.log
+StandardError=append:/home/pasky/rss/brmwiki.log
+Restart=always
+RestartSec=60
+
+[Install]
+WantedBy=default.target

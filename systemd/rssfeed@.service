@@ -1,0 +1,17 @@
+[Unit]
+Description=RSS-to-IRC bot (%i instance)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pasky/rss
+Environment=PATH=/home/pasky/.pyenv/versions/3.13.2/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/pasky/.pyenv/versions/3.13.2/bin/uv run python ./rssfeed.py --config config.toml --instance %i
+StandardOutput=append:/a/logs/rss/%i.log
+StandardError=append:/a/logs/rss/%i.log
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target
