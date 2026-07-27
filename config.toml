@@ -17,7 +17,8 @@ refresh_minutes = 10
 opml_path = "feeds/newscz.opml"
 extract_url = true
 multisource = true
-server = "irc.felk.cvut.cz"
+#server = "irc.felk.cvut.cz"
+server = "irc.spadhausen.com"
 
 [[instances]]
 name = "longreads"
@@ -29,3 +30,4 @@ opml_path = "feeds/longreads.opml"
 extract_url = true
 multisource = true
 include_description = true
+server = "irc.spadhausen.com"
